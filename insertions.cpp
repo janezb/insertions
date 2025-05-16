@@ -26,9 +26,9 @@ constexpr bool SLOW_CHECKS = true;
 // ----------------------------------------------------------------------------
 
 // Builds the suffix array of S in O(n) time using the skew algorithm
-// from K‰rkk‰inen and Sanders, "Simple linear work suffix array construction" (2003).
+// from K√§rkk√§inen and Sanders, "Simple linear work suffix array construction" (2003).
 // https://doi.org/10.1007/3-540-45061-0_73
-// and K‰rkk‰inen, Sanders, Burkhardt, "Linear work suffix array construction" (2006).
+// and K√§rkk√§inen, Sanders, Burkhardt, "Linear work suffix array construction" (2006).
 // https://doi.org/10.1145/1217856.1217858
 // Input: S[0..n-1], consisting of values from the range 1..n.
 // Output: SA[0..n-1], containing the values i from 0..n-1
