@@ -633,24 +633,6 @@ int TestSuffixArrayAndTree()
     return 0;
 }
 
-
-
-#if 0
-
-// https://en.wikipedia.org/w/index.php?title=Student%27s_t-test&oldid=1284704142#Equal_or_unequal_sample_sizes,_unequal_variances_(sX1_%3E_2sX2_or_sX2_%3E_2sX1)
-void WelchTTest(const TAverage &A1, const TAverage &A2, double &t, double &df)
-{
-    const double n1 = A1.n, n2 = A2.n;
-    const double avg1 = A1.Avg(), avg2 = A2.Avg();
-    const double var1 = A1.sum2 / (n1 - 1) - avg1 * A1.sum / (n1 - 1);
-    const double var2 = A2.sum2 / (n2 - 1) - avg2 * A2.sum / (n2 - 1);
-    const double var = var1 / n1 + var2 / n2;
-    //printf("%.6f +/- %.6f (%.6f), %.6f +/- %.6f (%.6f)\n", avg1, A1.Std(), sqrt(var1), avg2, A2.Std(), sqrt(var2));
-    t = (avg1 - avg2) / sqrt(var);
-    df = var * var / (var1 * var1 / n1 / n1 / (n1 - 1) + var2 * var2 / n2 / n2 / (n2 - 1));
-}
-#endif
-
 // ----------------------------------------------------------------------------
 // Prefix and suffix tables from the Knuth-Morris-Pratt algorithm
 // ----------------------------------------------------------------------------
