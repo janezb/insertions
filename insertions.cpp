@@ -1076,8 +1076,10 @@ struct TKmpTree
     struct TNode
     {
         int parent = -1, firstChild = -1, nextSib = -1;
-        int startTime = -1, endTime = -1; // indexes into 'dftOrder'
-        int startTime2 = -1, endTime2 = -1; // here the time is not incremented when exiting a node; thus the times to from 0 to nNodes - 1 and 'endTime2' is the maximum of 'startTime2' over all descendants of this node
+        int startTime = -1, endTime = -1; // The first and last occurrence of this node in the
+            // depth-first traversal, but the time is not incremented when exiting a node;
+            // thus the times go from 0 to nNodes - 1, and 'endTime' is the maximum of 'startTime'
+            // over all the descendants of this node.
         int height = -1; // distance from the deepest descendant
         int depth = -1; // distance from the root
         int nDesc = 0; // number of descendants, including this node itself
@@ -1087,22 +1089,22 @@ struct TKmpTree
     void DepthFirstTraversal()
     {
         stack<pair<int, bool>> toDo; toDo.emplace(root, true);
-        int time = 0, time2 = 0; //dftOrder.clear(); dftOrder.reserve(nodes.size());
+        int time = 0;
         while (! toDo.empty())
         {
-            auto [u, enter] = toDo.top(); //dftOrder.push_back(toDo.top());
+            auto [u, enter] = toDo.top();
             auto &U = nodes[u];
             TKmpTree::TNode *P = (U.parent >= 0) ? &nodes[U.parent] : nullptr;
             if (! enter) { 
-                U.endTime = time++; U.endTime2 = time2 - 1; toDo.pop(); 
+                U.endTime = time - 1; toDo.pop(); 
                 if (P) { P->height = max(P->height, U.height + 1); P->nDesc += U.nDesc; }
                 continue; }
-            toDo.top().second = false; U.startTime = time++; U.startTime2 = time2++;
+            toDo.top().second = false; U.startTime = time++;
             U.depth = (P ? P->depth + 1 : 0);
             U.height = 0; U.nDesc = 1;
             for (int v = U.firstChild; v >= 0; v = nodes[v].nextSib) toDo.emplace(v, true);
         }
-        Assert(time2 == (int) nodes.size());
+        Assert(time == (int) nodes.size());
     }
     TKmpTree() = default;
     void Init(const vector<int> &parent) 
@@ -1114,7 +1116,7 @@ struct TKmpTree
             U.parent = p; U.nextSib = P.firstChild; P.firstChild = u; }
         DepthFirstTraversal();
     }
-    // Returns 'true' if 'anc' is an ancestor of 'desc' (or the asme node).
+    // Returns 'true' if 'anc' is an ancestor of 'desc' (or the same node).
     bool IsAncestorOf(int anc, int desc) const 
     {
         const auto &D = nodes[desc], &A = nodes[anc];
@@ -2013,7 +2015,7 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
         // Sort the queries by Q.i, in linear time.
         vector<int> firstQuery(pd, -1), nextQuery(queries.size(), -1);
         for (int qi = 0; qi < queries.size(); ++qi) { const auto &Q = queries[qi]; if (Q.i <= 0) continue;
-            int x = iTree.nodes[Q.i].startTime2; nextQuery[qi] = firstQuery[x]; firstQuery[x] = qi; }
+            int x = iTree.nodes[Q.i].startTime; nextQuery[qi] = firstQuery[x]; firstQuery[x] = qi; }
         // Suppose that t occurs in p at position l, i.e. p[l:l+|t|] = t.  This accounts for one
         // occurrence of p in s[:k] t s[k:] for each k where s[:k] ends in p[:l] and s[k:] starts with p[l+|t|:].
         // This last condition is equivalent to saying that l must be an ancestor of i_k in the first tree,
@@ -2032,8 +2034,8 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
         for (int l = 1; l + td < pd; ++l) if (tOccInP[l])
         {
             Rectangle R; const auto &Ni = iTree.nodes[l], &Nj = jTree.nodes[pd - (l + td)]; 
-            R.x1 = Ni.startTime2; R.x2 = Ni.endTime2;
-            R.y1 = Nj.startTime2; R.y2 = Nj.endTime2;
+            R.x1 = Ni.startTime; R.x2 = Ni.endTime;
+            R.y1 = Nj.startTime; R.y2 = Nj.endTime;
             rects.push_back(R);
         }
         // For each x, prepare a list of the rectangles whose leftmost column is x 
@@ -2052,7 +2054,7 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
             // Process the queries for x.
             for (int qi = firstQuery[x]; qi >= 0; qi = nextQuery[qi]) {
                 auto &Q = queries[qi]; if (Q.j >= pd) continue;
-                int y = jTree.nodes[pd - Q.j].startTime2; Q.result = FenwickQuery(fenwickTree, y); }
+                int y = jTree.nodes[pd - Q.j].startTime; Q.result = FenwickQuery(fenwickTree, y); }
             // Remove the rectangles whose rightmost column is x.
             for (int ri = firstRight[x]; ri >= 0; ri = nextRight[ri]) {
                 const auto &R = rects[ri]; FenwickUpdate(fenwickTree, R.y1, -1); FenwickUpdate(fenwickTree, R.y2 + 1, 1); }
