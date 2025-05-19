@@ -1479,7 +1479,7 @@ public:
                 if (Prev.nextSib >= 0) { postOrderPrev = postOrderCur; postOrderCur = Prev.nextSib; continue; }
                 // If 'Cur' has no further children, we'll output it to postorder now.
             }
-            // Now we are the 'Cur's place in the postorder, so it's time to process it for
+            // Now we are at 'Cur's place in the postorder, so it's time to process it for
             // the purposes of microset construction.
             TNodeId v = postOrderCur; auto& V = Cur; V.desc = 1;
             while (true)
@@ -1743,7 +1743,7 @@ public:
     }
 };
 
-// The linear/time implementation using a the static tree set union data structure.
+// The linear/time implementation using the static tree set union data structure.
 struct TAncestorQueryProcessor_Linear : public TAncestorQueryProcessor
 {
 protected:
@@ -1755,7 +1755,7 @@ public:
     // much more time-consuming than executing the queries themselves.  Thus, if
     // we want to perform more then one batch of queries, it is much cheapter to 
     // reuse the data structure and just reset it before each new batch.
-    TAncestorQueryProcessor_Linear(const vector<int> &f_) : n(int(f_.size())), f(f_), staticTreeUnion(f_), needsReset(true) { }
+    TAncestorQueryProcessor_Linear(const vector<int> &f_) : n(int(f_.size())), f(f_), staticTreeUnion(f_), needsReset(false) { }
 
     virtual void Query(vector<TAncestorQuery> &queries) override
     {
