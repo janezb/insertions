@@ -19,6 +19,9 @@ using namespace std;
 #define Assert assert
 //#define Assert(x) 
 
+// The following variable can be used to enable additional assertion checks
+// that are a bit costly and sometimes even exceed the time complexity of the
+// algorithm in which they are included.
 constexpr bool SLOW_CHECKS = true;
 
 // ----------------------------------------------------------------------------
@@ -581,7 +584,6 @@ void TestSuffixArrayAndTree(const String &S, mt19937_64 &rnd)
 int TestSuffixArrayAndTree()
 {
     mt19937_64 r(123);
-    //TestSuffixArrayAndTree(string("lclllllllllllllll"), r);
     string alphabet(26, '.'); for (int i = 0; i < 26; ++i) alphabet[i] = 'a' + i;
     // Systematically test on all strings of length d from a b-letter alphabet,
     // for b = 2..5, where b^d <= 10^6.
@@ -605,7 +607,7 @@ int TestSuffixArrayAndTree()
         }
     }
     // Test on randomly constructed longer strings.
-    for (int nIter = 0; nIter < 10000'000; ++nIter)
+    for (int nIter = 0; nIter < 10'000'000; ++nIter)
     {
         if (nIter % 1000 == 0) { fprintf(stderr, "%d                  \r", nIter); fflush(stderr); }
         {
@@ -913,7 +915,6 @@ void TestBuildPrefixTable2(const String &t, int td, const String &p, int pd, con
     vector<int> tpRST; BuildSuffixTable2(t.rbegin(), td, p.rbegin(), pd, pRST, tpRST);
     vector<int> v1, v2; BuildPrefixTable2(pd, tpRST, v1);
     BuildPrefixTable2_Naive(t, td, p, pd, v2);
-    //if (t == "" && p == "a") printf("!");
     for (int k = 0; k <= td; ++k) Assert(v1[k] == v2[k]);
 }
 
@@ -2064,6 +2065,8 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
     // union-find data structure is used.
     else if (method == TMethod::NearlyLinear || method == TMethod::Linear) 
     {
+        // The following variable can be used to enable additional expensive assertion
+        // checks (whose presence means the time complexity is no longer linear).
         constexpr const bool LotsOfChecks = false;
 
         // Find the first two occurrences of t in p.  There should be at least one, otherwise 
@@ -2137,20 +2140,19 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
         };
         TCaptureHelper captureHelper { LcpP, LcsP, t, p, s, tInP, tInP2, spPT, spST, pPT, pST, tST, tOccInPNext };
 
-        // QW QW QW rename x into v everywhere!!!!
-        // This class counts the occurrences of p in utx (i.e. only such occurrences as begin in u and end in x),
-        // where u = p[:k] and x = p[k:].
+        // This class counts the occurrences of p in utv (i.e. only such occurrences as begin in u and end in v),
+        // where u = p[:i_k] and v = p[j_k:].
         // However, it is ready for the fact that at a few steps in the computation, 
         // we'll have to process all k's together as a batch instead of each of them individually.
         struct TFibre : protected TCaptureHelper
         {
             // Our fibre's 'local variables'.
-            int k, ud, xd, udOrig, xdOrig, nOccAll = 0;
+            int k, ud, vd, udOrig, vdOrig, nOccAll = 0;
             // Naive solution, for testing.
-            int nOccAll_ = -1, nOccAllEx_ = -1;  // nOccAllEx_ counts all occurrences of p in utx;  nOccAll_ counts only those that begin in u and end in x
+            int nOccAll_ = -1, nOccAllEx_ = -1;  // nOccAllEx_ counts all occurrences of p in utv;  nOccAll_ counts only those that begin in u and end in v
 
-            // Finds the longest mm such that p[:mm] = (utx)[h:h + mm].  
-            int find_p_in_utx_left(int h) 
+            // Finds the longest mm such that p[:mm] = (utv)[h:h + mm].  
+            int find_p_in_utv_left(int h) 
             { 
                 Assert(0 <= h); Assert(h <= ud);
                 int mm = LcpP(0, h); mm = min(mm, ud - h);
@@ -2159,27 +2161,27 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
                     int mm2 = LcpP(mm, tInP); mm2 = min(mm2, td);
                     mm += mm2;
                     if (mm2 == td) {
-                        // There's no mismatch until the end of t.  Now we're comparing p[mm:] with the beginning of x = p[-xd:].
-                        int mm3 = LcpP(mm, pd - xd); mm3 = min(mm3, xd);
+                        // There's no mismatch until the end of t.  Now we're comparing p[mm:] with the beginning of v = p[-vd:].
+                        int mm3 = LcpP(mm, pd - vd); mm3 = min(mm3, vd);
                         mm += mm3; } }
                 Assert(0 <= mm && mm <= pd);
-                if constexpr (LotsOfChecks) for (int i = 0; i <= mm && i < pd && i + h < ud + td + xd; ++i) {
-                    int j = h + i; char c = (j < ud) ? p[j] /* = u[j] */ : (j < ud + td) ? t[j - ud] : p[pd - xd + (j - ud - td)] /* = x[j - ud - td] */;
+                if constexpr (LotsOfChecks) for (int i = 0; i <= mm && i < pd && i + h < ud + td + vd; ++i) {
+                    int j = h + i; char c = (j < ud) ? p[j] /* = u[j] */ : (j < ud + td) ? t[j - ud] : p[pd - vd + (j - ud - td)] /* = v[j - ud - td] */;
                     char c2 = p[i]; if (i < mm) Assert(c == c2); else if (i == mm) Assert(c != c2); } 
                 return mm; 
             }
 
-            // Finds the longest mm such that p[pd - mm:] = (utx)[|utx| - h - mm : |utx| - h].  
+            // Finds the longest mm such that p[pd - mm:] = (utv)[|utv| - h - mm : |utv| - h].  
             // In other words, we're looking for an occurrence of 'p' that ends 'h' characters
-            // before the end of 'utx', and we're interested in the mm such that the rightmost
+            // before the end of 'utv', and we're interested in the mm such that the rightmost
             // mismatch occurs 'mm' characters before the end of 'p' (if there is actually a match, we'll get mm == |p|).
-            int find_p_in_utx_right(int h) 
+            int find_p_in_utv_right(int h) 
             { 
-                Assert(0 <= h); Assert(h <= xd);
-                // First we're comparing p (starting from the right) with the end of x = p[pd - xd:].
-                int mm = LcsP(0, h); mm = min(mm, xd - h);
-                if (mm == xd - h) {
-                    // There's no mismatch (starting from the right) until we reach the left end of x.
+                Assert(0 <= h); Assert(h <= vd);
+                // First we're comparing p (starting from the right) with the end of v = p[pd - vd:].
+                int mm = LcsP(0, h); mm = min(mm, vd - h);
+                if (mm == vd - h) {
+                    // There's no mismatch (starting from the right) until we reach the left end of v.
                     //  Now we're comparing p[:pd - mm] with the end of t = p[tInP : tInP + td].
                     int mm2 = LcsP(mm, pd - tInP - td); mm2 = min(mm2, td);
                     mm += mm2;
@@ -2188,8 +2190,8 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
                         int mm3 = LcsP(mm, pd - ud); mm3 = min(mm3, ud);
                         mm += mm3; } }
                 Assert(0 <= mm && mm <= pd);
-                if constexpr (LotsOfChecks) for (int i = 0; i <= mm && i < pd && i + h < ud + td + xd; ++i) {
-                    int j = h + i; char c = (j < xd) ? p[pd - 1 - j] /* = x[xd - 1 - j] */ : (j < xd + td) ? t[td - 1 - (j - xd)] : p[ud - 1 - (j - xd - td)] /* = u[ud - 1 - (j - ud - td)] */;
+                if constexpr (LotsOfChecks) for (int i = 0; i <= mm && i < pd && i + h < ud + td + vd; ++i) {
+                    int j = h + i; char c = (j < vd) ? p[pd - 1 - j] /* = v[vd - 1 - j] */ : (j < vd + td) ? t[td - 1 - (j - vd)] : p[ud - 1 - (j - vd - td)] /* = u[ud - 1 - (j - ud - td)] */;
                     char c2 = p[pd - 1 - i]; if (i < mm) Assert(c == c2); else if (i == mm) Assert(c != c2); } 
                 return mm; 
             }
@@ -2201,20 +2203,20 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
             { 
                 // We want to count the occurrences of p in s[:k] t s[k:] which start in s[:k] and end in s[k:].
                 // Let u = p[:ud] be the longest prefix of p that is also a suffix of s[:k]
-                // and let x = p[-xd:] be the longest suffix of p that is also a preffix of s[k:].
-                k = k_; ud = spST[k]; xd = pd - spPT[k];
+                // and let v = p[-vd:] be the longest suffix of p that is also a preffix of s[k:].
+                k = k_; ud = spST[k]; vd = pd - spPT[k];
                 if constexpr (false) for (int i = 0; i < ud; ++i) Assert(s[k - ud + i] == p[i]);
-                if constexpr (false) for (int i = 0; i < xd; ++i) Assert(s[k + i] == p[pd - xd + i]);
-                udOrig = ud, xdOrig = xd; nOccAll = 0;
+                if constexpr (false) for (int i = 0; i < vd; ++i) Assert(s[k + i] == p[pd - vd + i]);
+                udOrig = ud, vdOrig = vd; nOccAll = 0;
 
                 // Calculate the solution naively, for testing.
-                nOccAllEx_ = -1; nOccAll_ = -1;  // nOccAllEx_ counts all occurrences of p in utx;  nOccAll_ counts only those that begin in u and end in x
+                nOccAllEx_ = -1; nOccAll_ = -1;  // nOccAllEx_ counts all occurrences of p in utv;  nOccAll_ counts only those that begin within u and end within v
                 if constexpr (LotsOfChecks) {
                     nOccAllEx_ = 0; nOccAll_ = 0;
-                    for (int h = 0; h + pd <= ud + td + xd; ++h) {
-                        int mm = (h >= ud) ? -1 : find_p_in_utx_left(h);
-                        int h2 = ud + td + xd - (h + pd);
-                        int mm2 = (h2 >= xd) ? -1 : find_p_in_utx_right(h2);
+                    for (int h = 0; h + pd <= ud + td + vd; ++h) {
+                        int mm = (h >= ud) ? -1 : find_p_in_utv_left(h);
+                        int h2 = ud + td + vd - (h + pd);
+                        int mm2 = (h2 >= vd) ? -1 : find_p_in_utv_right(h2);
                         Assert(mm >= 0 || mm2 >= 0);
                         int found = -1;
                         if (mm < 0) found = (mm2 == pd);
@@ -2233,11 +2235,11 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
             {
                 if (ud <= pd / 4) return;
                 int nOcc = -1;
-                // First we'll count occurrences of p in utx at positions h <= |u|/2, then shorten u appropriately.
-                // Since p itself starts with u, the occurrence of u at the start of utx and the one at the start of p
+                // First we'll count occurrences of p in utv at positions h <= |u|/2, then shorten u appropriately.
+                // Since p itself starts with u, the occurrence of u at the start of utv and the one at the start of p
                 // will overlap by at least |u|/2 characters, which means that h is a period of u and therefore
                 // a multiple of the minimum period of u.
-                const string_view u(p.c_str(), ud), x(p.c_str() + pd - xd, xd);
+                const string_view u(p.c_str(), ud), v(p.c_str() + pd - vd, vd);
                 const int up = ud - pST[ud]; Assert(0 < up); Assert(up <= ud); // minimum period of u
                 if constexpr (LotsOfChecks) for (int i = up; i < ud; ++i) Assert(u[i] == u[i - up]);
                 // Compute the maximal K such that p[:K] has the period 'up'.  
@@ -2246,32 +2248,32 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
                 if constexpr (LotsOfChecks) for (int i = up; i < K; ++i) Assert(p[i - up] == p[i]);
                 // Since h must be a multiple of 'up', it will be of the form a * up for 0 <= a <= aMax.
                 //const int aMax = ud / (2 * up); Assert(aMax >= 0); Assert(aMax * up <= ud / 2); Assert((aMax + 1) * up > ud / 2);
-                const int aMax = min(ud / (2 * up), Floor(ud + td + xd - pd, up)); Assert(aMax * up <= ud / 2); Assert(aMax * up + pd <= ud + td + xd);
-                //if (aMax * up + pd > ud + td + xd) { fprintf(stderr, "s = \"%s\", t = \"%s\", p = \"%s\"; k = %d; ud = %d, td = %d, xd = %d; up = %d; aMax = %d; aMax up + pd = %d > ud + td + xd = %d\n", s.c_str(), t.c_str(), p.c_str(), k, ud, td, xd, up, aMax, aMax * up + pd, ud + td + xd); fflush(stderr); Assert(false); }
-                // But we'll really only be interested in occurrences that extend all the way into x.
+                const int aMax = min(ud / (2 * up), Floor(ud + td + vd - pd, up)); Assert(aMax * up <= ud / 2); Assert(aMax * up + pd <= ud + td + vd);
+                //if (aMax * up + pd > ud + td + vd) { fprintf(stderr, "s = \"%s\", t = \"%s\", p = \"%s\"; k = %d; ud = %d, td = %d, vd = %d; up = %d; aMax = %d; aMax up + pd = %d > ud + td + vd = %d\n", s.c_str(), t.c_str(), p.c_str(), k, ud, td, vd, up, aMax, aMax * up + pd, ud + td + vd); fflush(stderr); Assert(false); }
+                // But we'll really only be interested in occurrences that extend all the way into v.
                 // This means that we want a * up + |p| > |ut|, i.e. a > (|ut| - |p|) / up, i.e. a >= 1 + floor( (|ut| - |p|) / up ).
                 int aMin = ud + td - pd; if (aMin < 0) aMin = 0; else aMin = 1 + aMin / up;
-                // See if p[:K] occurs in utx at position aMax * up, or find the first mismatch 'mm'.
-                // In fact we'll just find the first mismatch between p and utx[aMax * up:], even if it occurs later than in the first K characters.
-                const int mm = (aMax < aMin) ? 0 : find_p_in_utx_left(aMax * up);
+                // See if p[:K] occurs in utv at position aMax * up, or find the first mismatch 'mm'.
+                // In fact we'll just find the first mismatch between p and utv[aMax * up:], even if it occurs later than in the first K characters.
+                const int mm = (aMax < aMin) ? 0 : find_p_in_utv_left(aMax * up);
                 if (aMax < aMin) nOcc = 0; 
-                // First, consider the case that p[:K] does occur in utx at position aMax * up.
+                // First, consider the case that p[:K] does occur in utv at position aMax * up.
                 else if (mm >= K)
                 {
                     // If K = |p|, we have found an occurrence of p; and since u is periodic with period 'up',
                     // shifting this occurrence by 'up' characters to the left will still see matching characters everywhere.
                     // Hence there is an occurrence at a * up for all 0 <= a <= aMax.   [But we only care about a >= aMin.]
                     if (K == pd) nOcc = (aMin > aMax) ? 0 : aMax - aMin + 1;
-                    // Otherwise no occurrence of p in utx is possible at positions a * up for a < aMax.
+                    // Otherwise no occurrence of p in utv is possible at positions a * up for a < aMax.
                     // However, an occurrence at aMax * up is still possible.  [But we only care about it if aMax >= aMin.]
                     else nOcc = (mm == pd) ? (aMax >= aMin ? 1 : 0) : 0;
                 }
-                // Otherwise we know that p[:K] does not occur in utx at position aMax * up because only the first mm characers match.
+                // Otherwise we know that p[:K] does not occur in utv at position aMax * up because only the first mm characers match.
                 else
                 {
-                    // In other words, there is a mismatch between p[mm] and (utx)[aMax * up + mm].
+                    // In other words, there is a mismatch between p[mm] and (utv)[aMax * up + mm].
                     // It can be shown that p[:K] also cannot cover that mismatch if we shift it left by a multiple of 'up'.
-                    // Thus we have to shift it so far left that p[:K] ends before (utx)[aMax * up + mm].
+                    // Thus we have to shift it so far left that p[:K] ends before (utv)[aMax * up + mm].
                     // In other words, we want a * up + K <= aMax * up + mm, hence a <= (aMax * up + mm - K) / up.
                     int aMax2 = aMax * up + mm - K; if (aMax2 < 0) aMax2 = -1; else aMax2 /= up;
                     Assert(aMax2 < aMax);
@@ -2280,22 +2282,22 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
                     else if (K == pd) { nOcc = (aMin > aMax2) ? 0 : aMax2 - aMin + 1; }
                     // Otherwise the only position where it could occur is at aMax2 * up itself.  We have to check this.   [But we only care about it if aMax2 >= aMin.]
                     else {
-                        int mm2 = find_p_in_utx_left(aMax2 * up);
+                        int mm2 = find_p_in_utv_left(aMax2 * up);
                         nOcc = (mm2 == pd) ? (aMax2 >= aMin ? 1 : 0) : 0; }
                 }
                 if constexpr (LotsOfChecks) {
                     int nOcc2 = 0; for (int h = 0; h <= ud / 2; ++h) {
                         if (h + pd <= ud + td) continue;
-                        int ii = find_p_in_utx_left(h); 
+                        int ii = find_p_in_utv_left(h); 
                         if constexpr (true) {
-                            int i = 0; for ( ; i < pd && i + h < ud + td + xd; ++i) {
-                                int j = i + h; char c = (j < ud) ? u[j] : (j < ud + td) ? t[j - ud] : x[j - ud - td];
+                            int i = 0; for ( ; i < pd && i + h < ud + td + vd; ++i) {
+                                int j = i + h; char c = (j < ud) ? u[j] : (j < ud + td) ? t[j - ud] : v[j - ud - td];
                                 char c2 = p[i]; if (c != c2) break; }
                             Assert(ii == i); }
                         if (ii == pd) ++nOcc2; }
-                    if (nOcc != nOcc2) printf("%d or %d?  u = %s (ud = %d, up = %d), t = %s, x = %s (xd = %d), p = %s (pd = %d); K = %d, mm = %d, aMax = %d\n", nOcc, nOcc2, string(u).c_str(), ud, up, t.c_str(), string(x).c_str(), xd, p.c_str(), pd, K, mm, aMax);
+                    if (nOcc != nOcc2) printf("%d or %d?  u = %s (ud = %d, up = %d), t = %s, v = %s (vd = %d), p = %s (pd = %d); K = %d, mm = %d, aMax = %d\n", nOcc, nOcc2, string(u).c_str(), ud, up, t.c_str(), string(v).c_str(), vd, p.c_str(), pd, K, mm, aMax);
                     Assert(nOcc == nOcc2); }
-                if constexpr (false) printf("nOcc = %d; u = %s (ud = %d, up = %d), t = %s, x = %s (xd = %d), p = %s (pd = %d); K = %d, mm = %d, aMax = %d\n", nOcc, string(u).c_str(), ud, up, t.c_str(), string(x).c_str(), xd, p.c_str(), pd, K, mm, aMax);
+                if constexpr (false) printf("nOcc = %d; u = %s (ud = %d, up = %d), t = %s, v = %s (vd = %d), p = %s (pd = %d); K = %d, mm = %d, aMax = %d\n", nOcc, string(u).c_str(), ud, up, t.c_str(), string(v).c_str(), vd, p.c_str(), pd, K, mm, aMax);
                 Assert(nOcc >= 0); Assert(nOcc <= ud / 2 + 1);
                 nOccAll += nOcc;
                 /* 
@@ -2307,122 +2309,122 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
                 */
             }
 
-            // Counts those occurrences of p that begin in the second half of x.
+            // Counts those occurrences of p that begin in the second half of v.
             void CountLateOccurrences()
             {
-                if (xd <= pd / 4) return;
+                if (vd <= pd / 4) return;
                 int nOcc = -1;
-                // Now we'll count occurrences of p in utx that end at positions |utx| - h for h <= |x|/2, then shorten x appropriately.
-                // Since p itself ends with x, the occurrence of x at the end of utx and the one at the end of p
-                // will overlap by at least |x|/2 characters, which means that h is a period of u and therefore
+                // Now we'll count occurrences of p in utv that end at positions |utv| - h for h <= |v|/2, then shorten v appropriately.
+                // Since p itself ends with v, the occurrence of v at the end of utv and the one at the end of p
+                // will overlap by at least |v|/2 characters, which means that h is a period of u and therefore
                 // a multiple of the minimum period of u.
-                const string_view u(p.c_str(), ud), x(p.c_str() + pd - xd, xd);
-                const int xp = pPT[pd - xd] - (pd - xd); Assert(0 < xp); Assert(xp <= xd); // minimum period of x
-                if constexpr (LotsOfChecks) for (int i = xp; i < xd; ++i) Assert(x[i] == x[i - xp]);
-                // Compute the maximal K such that p[pd-K:] has the period 'xp'.  
-                // Since x is a suffix of p and has the period 'xp', we will get K >= |x|.
-                const int K = LcsP(0, xp) + xp; Assert(K >= xd); Assert(K <= pd); Assert(K >= xp);
-                if constexpr (LotsOfChecks) for (int i = xp; i < K; ++i) Assert(p[pd - 1 - (i - xp)] == p[pd - 1 - i]);
-                // Since h must be a multiple of 'xp', it will be of the form a * xp for 0 <= a <= aMax.
-                //const int aMax = xd / (2 * xp); Assert(aMax >= 0); Assert(aMax * xp <= xd / 2); Assert((aMax + 1) * xp > xd / 2);
-                const int aMax = min(xd / (2 * xp), Floor(ud + td + xd - pd, xp)); Assert(aMax * xp <= xd / 2); Assert(aMax * xp + pd <= ud + td + xd);
+                const string_view u(p.c_str(), ud), v(p.c_str() + pd - vd, vd);
+                const int vp = pPT[pd - vd] - (pd - vd); Assert(0 < vp); Assert(vp <= vd); // minimum period of v
+                if constexpr (LotsOfChecks) for (int i = vp; i < vd; ++i) Assert(v[i] == v[i - vp]);
+                // Compute the maximal K such that p[pd-K:] has the period 'vp'.  
+                // Since v is a suffix of p and has the period 'vp', we will get K >= |v|.
+                const int K = LcsP(0, vp) + vp; Assert(K >= vd); Assert(K <= pd); Assert(K >= vp);
+                if constexpr (LotsOfChecks) for (int i = vp; i < K; ++i) Assert(p[pd - 1 - (i - vp)] == p[pd - 1 - i]);
+                // Since h must be a multiple of 'vp', it will be of the form a * vp for 0 <= a <= aMax.
+                //const int aMax = vd / (2 * vp); Assert(aMax >= 0); Assert(aMax * vp <= vd / 2); Assert((aMax + 1) * vp > vd / 2);
+                const int aMax = min(vd / (2 * vp), Floor(ud + td + vd - pd, vp)); Assert(aMax * vp <= vd / 2); Assert(aMax * vp + pd <= ud + td + vd);
                 // But we'll really only be interested in occurrences whose left end is in u.
-                // This means that we want a * xp + |p| > |tx|, i.e. a > (|tx| - |p|) / xp, i.e. a >= 1 + floor( (|tx| - |p|) / xp ).
-                int aMin = xd + td - pd; if (aMin < 0) aMin = 0; else aMin = 1 + aMin / xp;
-                // See if p[pd-K:] occurs in utx ending at position |utx| - aMax * up, or find the first mismatch 'mm' (counting from the right).
-                // In fact we'll just find the rightmost mismatch between p and utx[:|utx| - aMax * up], even if it occurs later than in the rightmost K characters.
-                const int mm = (aMax < aMin) ? 0 : find_p_in_utx_right(aMax * xp);
+                // This means that we want a * vp + |p| > |tv|, i.e. a > (|tv| - |p|) / vp, i.e. a >= 1 + floor( (|tv| - |p|) / vp ).
+                int aMin = vd + td - pd; if (aMin < 0) aMin = 0; else aMin = 1 + aMin / vp;
+                // See if p[pd-K:] occurs in utv ending at position |utv| - aMax * up, or find the first mismatch 'mm' (counting from the right).
+                // In fact we'll just find the rightmost mismatch between p and utv[:|utv| - aMax * up], even if it occurs later than in the rightmost K characters.
+                const int mm = (aMax < aMin) ? 0 : find_p_in_utv_right(aMax * vp);
                 if (aMax < aMin) nOcc = 0;
-                // First, consider the case that p[pd-K:] does occur in utx, ending aMax * xp characters before the right end.
+                // First, consider the case that p[pd-K:] does occur in utv, ending aMax * vp characters before the right end.
                 else if (mm >= K)
                 {
-                    // If K = |p|, we have found an occurrence of p; and since x is periodic with period 'xp',
-                    // shifting this occurrence by 'xp' characters to the right will still see matching characters everywhere.
-                    // Hence there is an occurrence at a * xp for all 0 <= a <= aMax.  [But we only case about a >= aMin.]
+                    // If K = |p|, we have found an occurrence of p; and since v is periodic with period 'vp',
+                    // shifting this occurrence by 'vp' characters to the right will still see matching characters everywhere.
+                    // Hence there is an occurrence at a * vp for all 0 <= a <= aMax.  [But we only case about a >= aMin.]
                     if (K == pd) nOcc = (aMin > aMax) ? 0 : aMax - aMin + 1;
-                    // Otherwise no occurrence of p in utx is possible such that it ends a * up characters before the right end for a < aMax.
+                    // Otherwise no occurrence of p in utv is possible such that it ends a * up characters before the right end for a < aMax.
                     // However, an occurrence at aMax * up is still possible.  [But we only case about it if aMax >= aMin.]
                     else nOcc = (mm == pd) ? (aMax >= aMin ? 1 : 0) : 0;
                 }
-                // Otherwise we know that p[pd-K:] does not occur in utx s.t. it ends aMax * up characetrs before the right end, because only the first mm characers match.
+                // Otherwise we know that p[pd-K:] does not occur in utv s.t. it ends aMax * up characetrs before the right end, because only the first mm characers match.
                 else
                 {
-                    // In other words, there is a mismatch between p[pd-1-mm] and (utx)[|utx| - 1 - (aMax * xp + mm)].
-                    // It can be shown that p[pd-K:] also cannot cover that mismatch if we shift it right by a multiple of 'xp'.
-                    // Thus we have to shift it so far right that the left end of p[pd-K:] starts to the right of (utx)[|utx| - 1 - (aMax * xp + mm)].
-                    // In other words, we want a * xp + K <= aMax * up + mm, hence a <= (aMax * xp + mm - K) / xp.
-                    int aMax2 = aMax * xp + mm - K; if (aMax2 < 0) aMax2 = -1; else aMax2 /= xp;
+                    // In other words, there is a mismatch between p[pd-1-mm] and (utv)[|utv| - 1 - (aMax * vp + mm)].
+                    // It can be shown that p[pd-K:] also cannot cover that mismatch if we shift it right by a multiple of 'vp'.
+                    // Thus we have to shift it so far right that the left end of p[pd-K:] starts to the right of (utv)[|utv| - 1 - (aMax * vp + mm)].
+                    // In other words, we want a * vp + K <= aMax * up + mm, hence a <= (aMax * vp + mm - K) / vp.
+                    int aMax2 = aMax * vp + mm - K; if (aMax2 < 0) aMax2 = -1; else aMax2 /= vp;
                     Assert(aMax2 < aMax);
                     if (aMax2 < 0) nOcc = 0;
-                    // If K = |p|, it occurs at every position a * xp for 0 <= a <= aMax2.  [But we only care about a >= aMin.]
+                    // If K = |p|, it occurs at every position a * vp for 0 <= a <= aMax2.  [But we only care about a >= aMin.]
                     else if (K == pd) nOcc = (aMin > aMax2) ? 0 : aMax2 - aMin + 1;
-                    // Otherwise the only position where it could occur is at aMax2 * xp itself.  We have to check this.  [And we only care about it if a >= aMin.]
+                    // Otherwise the only position where it could occur is at aMax2 * vp itself.  We have to check this.  [And we only care about it if a >= aMin.]
                     else {
-                        int mm2 = find_p_in_utx_right(aMax2 * xp);
+                        int mm2 = find_p_in_utv_right(aMax2 * vp);
                         nOcc = (mm2 == pd) ? (aMax2 >= aMin ? 1 : 0) : 0; }
                 }
                 if constexpr (LotsOfChecks) {
-                    int nOcc2 = 0; for (int h = 0; h <= xd / 2; ++h) {
-                        if (h + pd <= xd + td) continue;
-                        int ii = find_p_in_utx_right(h); 
+                    int nOcc2 = 0; for (int h = 0; h <= vd / 2; ++h) {
+                        if (h + pd <= vd + td) continue;
+                        int ii = find_p_in_utv_right(h); 
                         if constexpr (true) {
-                            int i = 0; for ( ; i < pd && h + i < ud + td + xd; ++i) {
-                                int j = (ud + td + xd) - 1 - (i + h); char c = (j < ud) ? u[j] : (j < ud + td) ? t[j - ud] : x[j - ud - td];
+                            int i = 0; for ( ; i < pd && h + i < ud + td + vd; ++i) {
+                                int j = (ud + td + vd) - 1 - (i + h); char c = (j < ud) ? u[j] : (j < ud + td) ? t[j - ud] : v[j - ud - td];
                                 char c2 = p[pd - 1 - i]; if (c != c2) break; }
                             Assert(ii == i); }
                         if (ii == pd) ++nOcc2; }
-                    if (nOcc != nOcc2) printf("%d or %d?  u = %s (ud = %d), t = %s, x = %s (xd = %d, xp = %d), p = %s (pd = %d); K = %d, mm = %d, aMax = %d\n", nOcc, nOcc2, string(u).c_str(), ud, t.c_str(), string(x).c_str(), xd, xp, p.c_str(), pd, K, mm, aMax);
+                    if (nOcc != nOcc2) printf("%d or %d?  u = %s (ud = %d), t = %s, v = %s (vd = %d, vp = %d), p = %s (pd = %d); K = %d, mm = %d, aMax = %d\n", nOcc, nOcc2, string(u).c_str(), ud, t.c_str(), string(v).c_str(), vd, vp, p.c_str(), pd, K, mm, aMax);
                     Assert(nOcc == nOcc2); }
-                if constexpr (false) printf("nOcc = %d; u = %s (ud = %d), t = %s, x = %s (xd = %d, xp = %d), p = %s (pd = %d); K = %d, mm = %d, aMax = %d\n", nOcc, string(u).c_str(), ud, t.c_str(), string(x).c_str(), xd, xp, p.c_str(), pd, K, mm, aMax);
-                Assert(nOcc >= 0); Assert(nOcc <= xd / 2 + 1);
+                if constexpr (false) printf("nOcc = %d; u = %s (ud = %d), t = %s, v = %s (vd = %d, vp = %d), p = %s (pd = %d); K = %d, mm = %d, aMax = %d\n", nOcc, string(u).c_str(), ud, t.c_str(), string(v).c_str(), vd, vp, p.c_str(), pd, K, mm, aMax);
+                Assert(nOcc >= 0); Assert(nOcc <= vd / 2 + 1);
                 nOccAll += nOcc;
                 /*
-                // Now we should update xd like this:
-                int xdNext = (xd - 1) / 2;
-                do { xd = pd - pPT[pd - xd]; } while (xd > xdNext); 
+                // Now we should update vd like this:
+                int vdNext = (vd - 1) / 2;
+                do { vd = pd - pPT[pd - vd]; } while (vd > vdNext); 
                 // But then the time complexity wouldn't be linear; the caller will have to do this
                 // in a batched manner over all the fibres.
                 */
             }
 
-            // Counts the occurrences that remain when u and x are short relative to p.
+            // Counts the occurrences that remain when u and v are short relative to p.
             void CountRemainingOccurrences() 
             {
-                // Now u and x are short, <= |p|/4.
-                Assert(ud <= pd / 4); Assert(xd <= pd / 4); 
-                if (! (ud + td + xd >= pd && ud > 0 && xd > 0)) return;  // ud > 0 and td > 0 are required so that an occurrence of p can begin in u and end in t at all
+                // Now u and v are short, <= |p|/4.
+                Assert(ud <= pd / 4); Assert(vd <= pd / 4); 
+                if (! (ud + td + vd >= pd && ud > 0 && vd > 0)) return;  // ud > 0 and td > 0 are required so that an occurrence of p can begin in u and end in t at all
                 Assert(td >= pd / 2);
-                const string_view u(p.c_str(), ud), x(p.c_str() + pd - xd, xd);
+                const string_view u(p.c_str(), ud), v(p.c_str() + pd - vd, vd);
                 int nOcc = -1;
                 for (int __ = 0; __ < 1; ++__) 
                 {
-                    // We're only interested in occurrences of p in u t x that contain the whole t.
+                    // We're only interested in occurrences of p in utv that contain the whole t.
                     if (tInP2 >= td) {
-                        // There is only one occurrence of t in p, so we can check if p occurs in utx that way.
-                        // Also note that we only care about it if it starts in u and extends all the way into x.
+                        // There is only one occurrence of t in p, so we can check if p occurs in utv that way.
+                        // Also note that we only care about it if it starts in u and extends all the way into v.
                         int h = ud - tInP; if (h < 0 || h >= ud || h + pd <= ud + td) nOcc = 0; 
-                        else { int mm = find_p_in_utx_left(h); 
+                        else { int mm = find_p_in_utv_left(h); 
                             nOcc = (mm == pd) ? 1 : 0; } 
                         break; }
                     // At this point we know there are at least two occurrences of t in p, namely at tInP and tInP2.
                     Assert(tInP2 < td);
                     int dtt = tInP2 - tInP;
-                    // Now |p| >= dtt + |t|, and thus it can only occur in utx if |utx| >= dtt + |t|,
-                    // i.e. dtt <= |u| + |x|.   Note that the right side is <= |p|/2, since we know that |u| and |x| are both <= |p|/4,
+                    // Now |p| >= dtt + |t|, and thus it can only occur in utv if |utv| >= dtt + |t|,
+                    // i.e. dtt <= |u| + |v|.   Note that the right side is <= |p|/2, since we know that |u| and |v| are both <= |p|/4,
                     // so we could check the slightly weaker condition dtt <= |p|/2.
-                    if (dtt > xd + ud) { nOcc = 0; break; }
+                    if (dtt > ud + vd) { nOcc = 0; break; }
                     Assert(dtt <= pd / 2);
-                    // If p does occur in utx, then some occurrence of t in p must match with the explicit occurrence of t in utx.
+                    // If p does occur in utv, then some occurrence of t in p must match with the explicit occurrence of t in utv.
                     // - If this is the first occurrence of t in p, then the second occurrence can occur at most
-                    //   |x| characters later (or it would extend past the right end of utx);
-                    //   and since |x| <= |p|/4 and |t| >= |p|/2, it follows that |x| <= |t|/2, 
-                    //   so these two occurrences of t in p must overlap by at least |t| - |x| >= |t|/2.
+                    //   |v| characters later (or it would extend past the right end of utv);
+                    //   and since |v| <= |p|/4 and |t| >= |p|/2, it follows that |v| <= |t|/2, 
+                    //   so these two occurrences of t in p must overlap by at least |t| - |v| >= |t|/2.
                     // - Similarly, if this is the second or even later occurrence of t in p, then the first occurrence
-                    //   can occur at most |u| characters earlier (or it would extend past the left end of utx);
-                    //   and since |u| <= |p|/4 <= |p|, it follows that these two occurrences of t in p must overlap by at least |t| - |x| >= |t|/2.
-                    // So either way, if p occurs in utx, then p contains two occurrences of t which overlap by at least |t|/2,
+                    //   can occur at most |u| characters earlier (or it would extend past the left end of utv);
+                    //   and since |u| <= |p|/4 <= |p|, it follows that these two occurrences of t in p must overlap by at least |t| - |v| >= |t|/2.
+                    // So either way, if p occurs in utv, then p contains two occurrences of t which overlap by at least |t|/2,
                     // and so each of these two overlapping occurrences must constitute a periodic string whose period
-                    // is the difference of the offsets in p where they occur, and this, as we already saw, is <= max{|x|, |u|} <= |p|/4.
+                    // is the difference of the offsets in p where they occur, and this, as we already saw, is <= max{|u|, |v|} <= |p|/4.
                     // Since these two overlapping occurrences of t begin with t, it follows that t itself is periodic with this period.
                     const int tp = td - tST[td]; Assert(0 < tp); Assert(tp <= td); // minimum period of t
                     if constexpr (false) for (int i = tp; i < td; ++i) Assert(t[i] == t[i - tp]);
@@ -2440,80 +2442,80 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
                         int j = i - tp; if (j < p1d) Assert(j < 0 || p[i] != p[j]);
                         else if (i >= pd - p3d) Assert(p[i] != p[j]);
                         else Assert(p[i] == p[j]); }
-                    // Similarly, we'll take the explicit t in utx and see how far left and right we can get
-                    // with the same period; thus extending t into u and x, we can imagine u being split into u1 u2
-                    // and x into x1 x2, such that u2 t x1 is periodic with the period 'tp'.
+                    // Similarly, we'll take the explicit t in utv and see how far left and right we can get
+                    // with the same period; thus extending t into u and v, we can imagine u being split into u1 u2
+                    // and v into v1 v2, such that u2 t v1 is periodic with the period 'tp'.
                     int wholePeriods = (td / tp) * tp; Assert(wholePeriods * 2 >= td);
-                    // |u| and |x| are <= |p|/4, while wholePeriods >= |t|/2 >= |p|/4,
-                    // so we'll reach the end of u or x even with the wholePeriods part.
-                    Assert(wholePeriods >= ud); Assert(wholePeriods >= xd); 
+                    // |u| and |v| are <= |p|/4, while wholePeriods >= |t|/2 >= |p|/4,
+                    // so we'll reach the end of u or v even with the wholePeriods part.
+                    Assert(wholePeriods >= ud); Assert(wholePeriods >= vd); 
                     int u2d = LcsP(pd - ud, pd - (tInP + wholePeriods)); u2d = min(u2d, wholePeriods);
                     if constexpr (false) if (u2d == wholePeriods) {  // Not needed, as we'll reach the end of u even with the wholePeriods part.
                         int mm2 = LcsP(pd - (ud - u2d), pd - (tInP + wholePeriods)); mm2 = min(mm2, wholePeriods);
                         u2d += mm2; }
-                    int x1d = LcpP(pd - xd, tInP + td - wholePeriods); x1d = min(x1d, wholePeriods);
-                    if constexpr (false) if (x1d == wholePeriods) { // Not needed, as we'll reach the end of x even with the wholePeriods part.
-                        int mm2 = LcpP(pd - (xd - x1d), tInP + td - wholePeriods); mm2 = min(mm2, wholePeriods);
-                        x1d += mm2; }
-                    Assert(u2d <= ud); Assert(u2d <= td); Assert(x1d <= xd); Assert(x1d <= td);
-                    int u1d = ud - u2d, x2d = xd - x1d;
-                    if constexpr (LotsOfChecks) for (int i = u1d + tp - 1; i <= ud + td + x1d; ++i) if (0 <= i && i < ud + td + xd) {
+                    int v1d = LcpP(pd - vd, tInP + td - wholePeriods); v1d = min(v1d, wholePeriods);
+                    if constexpr (false) if (v1d == wholePeriods) { // Not needed, as we'll reach the end of v even with the wholePeriods part.
+                        int mm2 = LcpP(pd - (vd - v1d), tInP + td - wholePeriods); mm2 = min(mm2, wholePeriods);
+                        v1d += mm2; }
+                    Assert(u2d <= ud); Assert(u2d <= td); Assert(v1d <= vd); Assert(v1d <= td);
+                    int u1d = ud - u2d, v2d = vd - v1d;
+                    if constexpr (LotsOfChecks) for (int i = u1d + tp - 1; i <= ud + td + v1d; ++i) if (0 <= i && i < ud + td + vd) {
                         int j = i - tp; if (j < 0) continue;
-                        int ci = (i < ud) ? u[i] : (i < ud + td) ? t[i - ud] : x[i - ud - td];
-                        int cj = (j < ud) ? u[j] : (j < ud + td) ? t[j - ud] : x[j - ud - td];
-                        if (j < u1d || i >= ud + td + x1d) Assert(ci != cj);
+                        int ci = (i < ud) ? u[i] : (i < ud + td) ? t[i - ud] : v[i - ud - td];
+                        int cj = (j < ud) ? u[j] : (j < ud + td) ? t[j - ud] : v[j - ud - td];
+                        if (j < u1d || i >= ud + td + v1d) Assert(ci != cj);
                         else Assert(ci == cj); }
-                    // If p = p1 p2 p3 occurs in u1 u2 t x1 x2 at position h,
-                    // then p2 occurs in u2 t x1 at position h + |p1| - |u1|.  
-                    // But where does p2 occur in u2 t x1?  
+                    // If p = p1 p2 p3 occurs in u1 u2 t v1 v2 at position h,
+                    // then p2 occurs in u2 t v1 at position h + |p1| - |u1|.  
+                    // But where does p2 occur in u2 t v1?  
                     int K = tOccInPNext[p1d]; Assert(K >= p1d); Assert(K + td <= p1d + p2d);
                     K -= p1d; 
                     const string_view p2(p.c_str() + p1d, p2d); 
                     if constexpr (false) printf("p = %s (pd %d), p1d = %d, p2d = %d, p3d = %d; t = %s (td %d), K = %d\n", p.c_str(), pd, p1d, p2d, p3d, t.c_str(), td, K);
                     if constexpr (LotsOfChecks) for (int i = 0; i < td; ++i) Assert(t[i] == p2[K + i]);
-                    // Now t occurs at position K in p2; and if p2 occurs in u2 t x1 at position h + |p1| - |u1|,
-                    // then the t which occurs at position K in p2 will occur at position h + |p1| - |u1| + K in u2 t x1,
+                    // Now t occurs at position K in p2; and if p2 occurs in u2 t v1 at position h + |p1| - |u1|,
+                    // then the t which occurs at position K in p2 will occur at position h + |p1| - |u1| + K in u2 t v1,
                     // so one way for this to work would be to have h + |p1| - |u1| + K = |u2|,
                     // and thus h = |u| - |p1| - K; other possibilities would have h + a tp for various integers a.
                     int h0 = ud - p1d - K;
-                    // We want 0 <= h0 + a tp <= |utx| - |p| so that p lies within utx,
-                    int aMin = -h0, aMax = ud + td + xd - pd - h0;
-                    // but also 0 <= h0 + a tp + |p1| - |u1| <= |u2 t x1| - |p2| so that p2 lies within u2 t x1.
+                    // We want 0 <= h0 + a tp <= |utv| - |p| so that p lies within utv,
+                    int aMin = -h0, aMax = ud + td + vd - pd - h0;
+                    // but also 0 <= h0 + a tp + |p1| - |u1| <= |u2 t v1| - |p2| so that p2 lies within u2 t v1.
                     aMin = max(aMin, -h0 - p1d + u1d); 
-                    aMax = min(aMax, ud + td + x1d - p1d - p2d - h0);
+                    aMax = min(aMax, ud + td + v1d - p1d - p2d - h0);
                     // And we also want h0 + a tp <= |u| - 1 so that p starts within u.
                     aMax = min(aMax, ud - 1 - h0);
-                    // And we also want h0 + a tp + |pd| >= |u t| + 1 so that p ends within x.
+                    // And we also want h0 + a tp + |pd| >= |u t| + 1 so that p ends within v.
                     aMin = max(aMin, ud + td + 1 - h0 - pd);
                     aMin = Ceil(aMin, tp); aMax = Floor(aMax, tp);
                     if (aMin > aMax) { nOcc = 0; break; }
-                    if constexpr (false) printf("h0 = %d, K = %d, tp = %d, a = %d..%d, p1d = %d, p2d = %d, p3d = %d; u1d = %d, u2d = %d; x1d = %d, x2d = %d\n", h0, K, tp, aMin, aMax, p1d, p2d, p3d, u1d, u2d, x1d, x2d);
-                    // We know that p2 occurs in u2 t x1 at positions h0 + a tp for aMin <= a <= aMax.
+                    if constexpr (false) printf("h0 = %d, K = %d, tp = %d, a = %d..%d, p1d = %d, p2d = %d, p3d = %d; u1d = %d, u2d = %d; v1d = %d, v2d = %d\n", h0, K, tp, aMin, aMax, p1d, p2d, p3d, u1d, u2d, v1d, v2d);
+                    // We know that p2 occurs in u2 t v1 at positions h0 + a tp for aMin <= a <= aMax.
                     if (p1d == 0 && p3d == 0) 
                         // Since p = p2, we also have the occurrences of p that we were looking for.
                         nOcc = aMax - aMin + 1; 
                     else if (p1d > 0) {
                         // Since p1 is nonempty, it can be shown that only the leftmost candidate can yield an occurrence of p.
-                        int mm = find_p_in_utx_left(h0 + aMin * tp);
+                        int mm = find_p_in_utv_left(h0 + aMin * tp);
                         nOcc = (mm == pd) ? 1: 0; }
                     else {
                         Assert(p3d > 0);
                         // Since p3 is nonempty, it can be shown that only the rightmost candidate can yield an occurrence of p.
-                        int mm = find_p_in_utx_left(h0 + aMax * tp);
+                        int mm = find_p_in_utv_left(h0 + aMax * tp);
                         nOcc = (mm == pd) ? 1: 0; }
                 }
 
                 if constexpr (LotsOfChecks) {
                     // Compare the number of occurrences found by this function with the result obtained by a naive method.
-                    int nOcc2 = 0; for (int h = 0; h < ud && h + pd <= ud + td + xd; ++h) {
+                    int nOcc2 = 0; for (int h = 0; h < ud && h + pd <= ud + td + vd; ++h) {
                         if (h + pd <= ud + td) continue;
-                        int m1 = find_p_in_utx_left(h);
+                        int m1 = find_p_in_utv_left(h);
                         if constexpr (false) printf(" (%d:%d)", h, m1);
-                        int h2 = ud + td + xd - (h + pd);
-                        int m2 = find_p_in_utx_right(h2);
+                        int h2 = ud + td + vd - (h + pd);
+                        int m2 = find_p_in_utv_right(h2);
                         if (m1 == pd) { Assert(m2 == pd); ++nOcc2; }
                         else Assert(m2 < pd); }
-                    if (nOcc != nOcc2) printf("nOcc = %d or %d?  s = %s (sd = %d), k = %d; u = %s (ud = %d), t = %s, x = %s (xd = %d), p = %s (pd = %d)\n", nOcc, nOcc2, s.c_str(), (int) s.length(), k, string(u).c_str(), ud, t.c_str(), string(x).c_str(), xd, p.c_str(), pd);
+                    if (nOcc != nOcc2) printf("nOcc = %d or %d?  s = %s (sd = %d), k = %d; u = %s (ud = %d), t = %s, v = %s (vd = %d), p = %s (pd = %d)\n", nOcc, nOcc2, s.c_str(), (int) s.length(), k, string(u).c_str(), ud, t.c_str(), string(v).c_str(), vd, p.c_str(), pd);
                     Assert(nOcc == nOcc2);  }
                 nOccAll += nOcc;
             }
@@ -2554,30 +2556,30 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
         }
         if (aqp) { delete aqp; aqp = nullptr; } // Clean up the AQP (later we'll need a new one based on p^R instead of p).
         // Count late occurrences.
-        vector<int> fForXdAncQueries(pd + 1); for (int xd = 0; xd <= pd; ++xd) fForXdAncQueries[xd] = pd - pPT[pd - xd];
+        vector<int> fForVdAncQueries(pd + 1); for (int vd = 0; vd <= pd; ++vd) fForVdAncQueries[vd] = pd - pPT[pd - vd];
         for (int nIter = 0; ; ++nIter)
         {
             ancQueries.clear();
             // Let each fibre do its work.
             for (int fi = 0; fi < (int) fibres.size(); ++fi) {
                 auto &F = fibres[fi]; F.CountLateOccurrences();
-                // Set up an ancestor query to calculate the new, shorter length of x.
-                if (F.xd > pd / 4) ancQueries.emplace_back(fi, F.xd, (F.xd - 1) / 2); }
+                // Set up an ancestor query to calculate the new, shorter length of v.
+                if (F.vd > pd / 4) ancQueries.emplace_back(fi, F.vd, (F.vd - 1) / 2); }
             if (ancQueries.empty()) break;
             Assert(nIter < 2);
             // Do a batch of queries in linear (or near-linear) time, same as above.
             if (!aqp) {
-                if (method == TMethod::NearlyLinear) aqp = new TAncestorQueryProcessor_NearlyLinear(fForXdAncQueries);
-                else aqp = new TAncestorQueryProcessor_Linear(fForXdAncQueries); }
+                if (method == TMethod::NearlyLinear) aqp = new TAncestorQueryProcessor_NearlyLinear(fForVdAncQueries);
+                else aqp = new TAncestorQueryProcessor_Linear(fForVdAncQueries); }
             aqp->Query(ancQueries);
             if (nIter == 1) { delete aqp; aqp = nullptr; }
             if constexpr (LotsOfChecks) for (auto &Q : ancQueries)
             {
-                int xd = Q.u; int xdNext = (xd - 1) / 2; Assert(Q.upperBound == xdNext);
-                do { xd = pd - pPT[pd - xd]; } while (xd > xdNext);
-                Assert(xd == Q.answer);
+                int vd = Q.u; int vdNext = (vd - 1) / 2; Assert(Q.upperBound == vdNext);
+                do { vd = pd - pPT[pd - vd]; } while (vd > vdNext);
+                Assert(vd == Q.answer);
             }
-            for (auto &Q : ancQueries) fibres[Q.queryIdx].xd = Q.answer;
+            for (auto &Q : ancQueries) fibres[Q.queryIdx].vd = Q.answer;
         }
         if (aqp) { delete aqp; aqp = nullptr; }
         // Count the remaining occurrences and store the solutions.
