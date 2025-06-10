@@ -1063,8 +1063,8 @@ void TestBuildSuffixTable2B()
 struct TKmpTree
 {
     // This structure represents a request to calculate f(i, j), defined as
-    // the number of those occurrences of p in p[:i] t p[:j] which begin
-    // within p[:i] and end within p[:j].  This request arises when counting
+    // the number of those occurrences of p in p[:i] t p[j:] which begin
+    // within p[:i] and end within p[j:].  This request arises when counting
     // the occurrences of p in s[:k] t s[k:].  The result, i.e. the value f(i, j),
     // is to be stored in 'result'.  The 'next' field is used when grouping
     // queries based on the nearest marked ancestor of i in the first tree.
