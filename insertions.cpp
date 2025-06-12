@@ -639,9 +639,9 @@ int TestSuffixArrayAndTree()
 // Prefix and suffix tables from the Knuth-Morris-Pratt algorithm
 // ----------------------------------------------------------------------------
 // The functions in this section come in groups: BuildX is the linear-time
-// function; BuildX_Naive is a simpler quadratic-time function that should
-// return the same results; TestBuildX tests whether they return the same
-// results, either on a single string or (the parameterless function) on
+// function; BuildX_Naive is a simpler quadratic- or cubic-time function that 
+// should return the same results; TestBuildX tests whether they return the 
+// same results, either on a single string or (the parameterless function) on
 // all binary strings up to a certain length.
 
 // Given a string p[0..n-1], this function calculates, for k = 0..n,
@@ -707,7 +707,6 @@ void TestBuildSuffixTable()
 template<typename String>
 void BuildSuffixTable2(const String &s, int sd, const String &p, int pd, const vector<int> &pST, vector<int> &v)
 {
-    //if (s == "aa" && p == "aa") printf("!");
     Assert(pd > 0);
     v.resize(sd + 1); v[0] = 0; 
     for (int k = 1; k <= sd; ++k)
@@ -725,7 +724,6 @@ void BuildSuffixTable2(const String &s, int sd, const String &p, int pd, const v
 template<typename String>
 void BuildSuffixTable2_Naive(const String &s, int sd, const String &p, int pd, vector<int> &v)
 {
-    //if (s == "aa" && p == "a") printf("!");
     v.resize(sd + 1);
     for (int k = 0; k <= sd; ++k)
     {
@@ -1124,8 +1122,8 @@ struct TKmpTree
     }
     // Proceed from the bottom upwards and cut off any subtrees with >= 'maxSubtreeSize' nodes.
     // The roots of such trees are considered to be 'marked', as is the root of the entire tree.
-    // The vector 'closestMarkedAncestor[u]' receives the pair (p, d) where p is the closest marked
-    // ancestor of u, and d is the distance between p and u.
+    // The vector 'closestMarkedAncestor[u]' receives the pair (a, d) where a is the closest marked
+    // ancestor of u, and d is the distance between a and u.
     int MarkNodes(int maxSubtreeSize, vector<pair<int, int>> &closestMarkedAncestor)
     {
         int n = nodes.size(), nMarked = 0; closestMarkedAncestor.resize(n); for (auto &x : closestMarkedAncestor) x = {-1, -1};
@@ -1270,7 +1268,6 @@ protected:
         //vector<int> trace; trace.emplace_back(preOrderPrev);
         while (preOrderCur != w)
         {
-            //trace.emplace_back(preOrderCur);
             TNode *Prev = (preOrderPrev < 0) ? nullptr : &nodes[preOrderPrev];
             TNode &Cur = nodes[preOrderCur];
             // If we entered 'Cur' from a child, proceed to its next child.
@@ -2131,6 +2128,16 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
         // This class is used by TFibre to capture local variables from Solve().
         // At first I hoped to simply derive TFibre from a lambda instead, but it turns out that
         // you can't access the variables that a lambda has captured.  https://stackoverflow.com/a/19976680
+        // - Note that the current implementation wastes a lot of space because each TFibre
+        // has its own instance of TCaptureHelper, even though all these instances are 
+        // completely identical since they consist of references to the same variables 
+        // (which live within the scope of the Solve() function).  Since there will be |s|-1
+        // instances of TFibre, the amount of memory thus wasted is considerable.  This could
+        // be avoided at the cost of a mild inconvenience if we had just one instance of 
+        // TCaptureHelper and each TFibre contained a reference to it rather than being derived
+        // from it.  However, most of the memory consumption of the linear and nearly-linear
+        // solutions comes from data structures that depend on |p| rather than |s|, so in
+        // the bigger scheme of things this improvement wouldn't be that important.
         struct TCaptureHelper 
         {
             TLcpP &LcpP; TLcsP &LcsP;
@@ -2142,7 +2149,7 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
         };
         TCaptureHelper captureHelper { LcpP, LcsP, t, p, s, tInP, tInP2, spPT, spST, pPT, pST, tST, tOccInPNext };
 
-        // This class counts the occurrences of p in utv (i.e. only such occurrences as begin in u and end in v),
+        // This class counts those occurrences of p in utv that begin within u and end within v,
         // where u = p[:i_k] and v = p[j_k:].
         // However, it is ready for the fact that at a few steps in the computation, 
         // we'll have to process all k's together as a batch instead of each of them individually.
@@ -2151,7 +2158,7 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
             // Our fibre's 'local variables'.
             int k, ud, vd, udOrig, vdOrig, nOccAll = 0;
             // Naive solution, for testing.
-            int nOccAll_ = -1, nOccAllEx_ = -1;  // nOccAllEx_ counts all occurrences of p in utv;  nOccAll_ counts only those that begin in u and end in v
+            int nOccAll_ = -1, nOccAllEx_ = -1;  // nOccAllEx_ counts all occurrences of p in utv;  nOccAll_ counts only those that begin within u and end within v
 
             // Finds the longest mm such that p[:mm] = (utv)[h:h + mm].  
             int find_p_in_utv_left(int h) 
@@ -2203,7 +2210,7 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
 
             explicit TFibre(TCaptureHelper &captureHelper_, int k_) : TCaptureHelper(captureHelper_) 
             { 
-                // We want to count the occurrences of p in s[:k] t s[k:] which start in s[:k] and end in s[k:].
+                // We want to count the occurrences of p in s[:k] t s[k:] which start within s[:k] and end within s[k:].
                 // Let u = p[:ud] be the longest prefix of p that is also a suffix of s[:k]
                 // and let v = p[-vd:] be the longest suffix of p that is also a preffix of s[k:].
                 k = k_; ud = spST[k]; vd = pd - spPT[k];
@@ -2394,10 +2401,13 @@ void Solve(const string &s, const string &t, const string &p, vector<int> &solut
             {
                 // Now u and v are short, <= |p|/4.
                 Assert(ud <= pd / 4); Assert(vd <= pd / 4); 
-                if (! (ud + td + vd >= pd && ud > 0 && vd > 0)) return;  // ud > 0 and td > 0 are required so that an occurrence of p can begin in u and end in t at all
+                if (! (ud + td + vd >= pd && ud > 0 && vd > 0)) return;  // ud > 0 and vd > 0 are required so that an occurrence of p can begin within u and end within v at all
                 Assert(td >= pd / 2);
                 const string_view u(p.c_str(), ud), v(p.c_str() + pd - vd, vd);
                 int nOcc = -1;
+                // We have a single-iteration loop here so that we can get out of it with 'break'
+                // and still do some checks afterwards (for debugging/testing purposes)
+                // before exiting the function itself.
                 for (int __ = 0; __ < 1; ++__) 
                 {
                     // We're only interested in occurrences of p in utv that contain the whole t.
@@ -2626,10 +2636,10 @@ void TestSolve(const string &s, const string &t, const string &p)
     // Start with the linear method.
     Solve(s, t, p, sol1, TMethod::Linear);
     // If the strings are short enough, compare the results with the naive cubic method. 
-    if (s.size() <= 500 && p.size() <= 500 && t.size() <= 500) 
+    if (s.length() <= 500 && p.length() <= 500 && t.length() <= 500) 
     {
         SolveNaive(s, t, p, sol2);
-        for (int k = 0, sd = (int) s.size(); k <= sd; ++k) 
+        for (int k = 0, sd = (int) s.length(); k <= sd; ++k) 
         {
             if (sol1[k] != sol2[k]) { fprintf(stderr, "s = \"%s\", t = \"%s\", p = \"%s\", sol[%d] = %d or %d\n", 
                 s.c_str(), t.c_str(), p.c_str(), k, sol1[k], sol2[k]); fflush(stderr); }
@@ -2654,7 +2664,7 @@ void TestSolve()
 {
     for (int M = 1; ; ++M) // M = max{|s|, |t|, |p|}
     for (int L = 3; L <= 3 * M; ++L) // L = |s| + |t| + |p|
-    for (int sd = 1; sd <= M && sd + 2 < L; ++sd) for (int td = 1; td <= M && sd + td < L; ++td) // for (int pd = td; pd <= M; ++pd)
+    for (int sd = 1; sd <= M && sd + 2 < L; ++sd) for (int td = 1; td <= M && sd + td < L; ++td) 
     {
         int pd = L - sd - td; if (pd < td || pd > M) continue;
         if (max(sd, max(td, pd)) < M) continue;
@@ -2683,19 +2693,19 @@ void TestSolveMt(int nThreads = 10)
     if (nThreads < 0) nThreads = thread::hardware_concurrency();
     for (int M = 1; ; ++M)
     for (int L = 3; L <= 3 * M; ++L)
-    for (int sd = 1; sd <= M && sd + 2 < L; ++sd) for (int td = 1; td <= M && sd + td < L; ++td) // for (int pd = td; pd <= M; ++pd)
+    for (int sd = 1; sd <= M && sd + 2 < L; ++sd) for (int td = 1; td <= M && sd + td < L; ++td) 
     {
         int pd = L - sd - td; if (pd < td || pd > M) continue;
         if (pd > sd + td) continue;
         if (max(sd, max(td, pd)) < M) continue;
         printf("[%d threads] M = %d, L = %d: |s| = %d, |t| = %d, |p| = %d      \n", nThreads, M, L, sd, td, pd); fflush(stdout);
 
-        auto ThreadFunc = [sd, td, pd] (long long int from, long long int to)
+        auto ThreadFunc = [sd, td, pd] (int_fast64_t from, int_fast64_t to)
         {
             string s, t, p; s.resize(sd); t.resize(td); p.resize(pd);
-            for (long long int x = from; x < to; ++x)
+            for (int_fast64_t x = from; x < to; ++x)
             {
-                long long int xx = x;
+                int_fast64_t xx = x;
                 for (int i = 0; i < sd; ++i) { s[i] = 'a' + (xx & 1); xx >>= 1; }
                 for (int i = 0; i < td; ++i) { t[i] = 'a' + (xx & 1); xx >>= 1; }
                 for (int i = 0; i < pd; ++i) { p[i] = 'a' + (xx & 1); xx >>= 1; }
@@ -2704,7 +2714,7 @@ void TestSolveMt(int nThreads = 10)
         };
 
         Assert(sd + td + pd == L);
-        long long int nCases = 1LL << (sd + td + pd);
+        int_fast64_t nCases = int_fast64_t(1) << (sd + td + pd);
         // Divide the 2^L test cases evenly amongst the threads.
         vector<thread> threads;
         for (int i = 0; i < nThreads; ++i) threads.emplace_back(ThreadFunc, (nCases * i) / nThreads, (nCases * (i + 1)) / nThreads);
