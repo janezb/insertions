@@ -10,7 +10,7 @@ We list some important functions and data structures with brief descriptions. Mo
 
 - `Solve`: This function contains the main part of the solution of our problem. Given the strings `s`, `t`, `p`, its job is to calculate, for each position $k$ where `t` may be inserted into `s`, the number of occurrences of `p` as a substring in the string `s[:k] t s[k:]`. Which method is to be used to count those occurrences of `p` which begin within `s[:k]` and end within `s[k:]` is determined by the last argument of type `TMethod`, which can be `Quadratic`, `NSqrtN`, `NLogN`, `NearlyLinear`or `Linear`.
 
-- `BuildSuffixTable` and `BuildSuffixTable2` compute the prefix and suffix tables from the Knuth-Morris-Pratt algorithm that are used by all methods.
+- `BuildSuffixTable`, `BuildSuffixTable2`, `BuildPrefixTable`, `BuildPrefixTable2` compute the prefix and suffix tables from the Knuth-Morris-Pratt algorithm that are used by all methods.
 
 - `TKmpTree` is a tree data structure that represents the KMP tree. It is used in the `Quadratic`, `NSqrtN` and `NLogN` method to determine ancestors in the tree (shorter prefix-suffixes).
 
